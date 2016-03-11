@@ -1,4 +1,4 @@
-
+** now using git hub!!
 
 use "~/Dropbox/Projects/Bail/Phila/2005/bailInfo2_2005.dta", clear
 
