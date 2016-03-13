@@ -23,13 +23,14 @@ foreach jj in  2006  2007 2008 2009 2010 2011 2012 2013 2014 2015 {
 	
 	** keep only relevant docket info
 	gen year  = real(substr(docket,-4,4))
-	keep if year==`jj'
+	keep if year>=`jj'
 	gen county  = real(substr(docket,4,2))
 	keep if county==51
 	gen typeCase = substr(docket,7,2)
 	keep if typeCase=="CR"
 
-	drop typeCase county year
+
+	drop typeCase county   
 	
 
 	* decode the rest
@@ -43,15 +44,8 @@ foreach jj in  2006  2007 2008 2009 2010 2011 2012 2013 2014 2015 {
 		
 			
 
-	*** some duplicates remain, based on differing names, arrest dates, etc.
-
-  foreach x in arrDt defAtty dispDt dispJudge OTN DC procStat {
-	sort docket `x'
-	bysort docket: replace `x'=`x'[_n+1] if `x'==""
-	duplicates drop
-	}
 	
-		* convert dates to date format
+	* convert dates to date format
 	foreach x in arrDt dispDt {
 		gen `x'1=date(`x', "MDY")
 		drop `x'
@@ -60,15 +54,47 @@ foreach jj in  2006  2007 2008 2009 2010 2011 2012 2013 2014 2015 {
 		format `x' %td
 	}
 	
-	* investigate multiples
-	*drop dupDock
-	*duplicates tag docket, gen(dupDock)
-	bysort OTN: egen maxDispDt=max(dispDt)
+
+	********************************
+	* merge	in orignal docket number in order to get final disposition date
+	********************************
+	
+	
+	foreach zz in 2006  2007 2008 2009 2010 2011 2012 2013 2014 2015 {
+		merge m:1 docket using "~/Dropbox/Projects/Bail/Phila/`zz'/orig_`zz'.dta", keepusing(origDocket) gen(_merge_`zz') update
+		replace origDocket="" if origDocket=="Empty" | origDocket=="NA"
+		drop if _merge_`zz'==2
+	}
+	drop _merge*
+	replace origDocket=docket if origDocket==""
+	
+	* replace final disposition dates with the CP disposition date 	
+	bysort origDocket: egen maxDispDt=max(dispDt)
 	replace dispDt=maxDispDt
 	drop maxDispDt
-	bysort OTN: egen minArrDt=max(arrDt)
+	bysort origDocket: egen minArrDt=max(arrDt)
 	replace arrDt=minArrDt
 	drop minArrDt
+	
+	*** fill in info that might be missing on the MC docket with info from the CP docket
+	foreach x in defAtty  dispJudge OTN DC procStat {
+		sort docket `x'
+		bysort docket: replace `x'=`x'[_n+1] if `x'==""
+	}
+	*** do again!
+	foreach x in defAtty  dispJudge OTN DC procStat {
+		sort docket `x'
+		bysort docket: replace `x'=`x'[_n+1] if `x'==""
+	}
+	*** do again!
+	foreach x in defAtty  dispJudge OTN DC procStat {
+		sort docket `x'
+		bysort docket: replace `x'=`x'[_n+1] if `x'==""
+		duplicates drop
+	}
+		
+	
+	
 	duplicates drop docket, force
 	save  caseBasics_`jj'.dta, replace
 }
